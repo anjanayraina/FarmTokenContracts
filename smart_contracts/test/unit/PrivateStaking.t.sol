@@ -16,7 +16,7 @@ contract PrivateStakingUnitTest is BaseSetup {
 
         vm.startPrank(admin);
         assetNFT.approve(address(privateStaking), 1);
-        vm.expectRevert("NAVOracle: Price is stale");
+        vm.expectRevert("PrivateStaking: Oracle price is stale");
         privateStaking.stakeNFT(1);
         vm.stopPrank();
     }

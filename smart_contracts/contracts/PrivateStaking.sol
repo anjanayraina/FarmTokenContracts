@@ -7,14 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-/**
- * @dev Reusing the interface here to avoid cyclic/heavy dependencies visually.
- * Could also natively import "./NAVOracle.sol" if it defines the INAVOracle interface loosely.
- */
-interface INAVOracle {
-    function getPrice(uint256 tokenId) external view returns (uint256);
-    function isStale(uint256 tokenId) external view returns (bool);
-}
+import "./NAVOracle.sol";
 
 interface IRightsToken {
     function mint(address to, uint256 amount) external;
