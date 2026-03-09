@@ -6,7 +6,7 @@ jspm_packages/
 .next/
 out/
 build/
-
+/smart_contracts/node_modules/*
 # Foundry / Hardhat
 cache/
 out/
