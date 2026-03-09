@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -13,12 +12,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * @dev A highly secure Treasury Management Vault for an existing ERC721 NFT portfolio.
  * Strictly private; completely restricted to `onlyOwner()`.
  */
-contract PrivateNFTVault is
-    Ownable,
-    ReentrancyGuard,
-    Pausable,
-    IERC721Receiver
-{
+contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
     IERC721 public immutable nftCollection;
     IERC20 public immutable rewardToken;
 
@@ -93,8 +87,11 @@ contract PrivateNFTVault is
                 owner: msg.sender
             });
 
-            // Transfer to Vault
-            nftCollection.safeTransferFrom(msg.sender, address(this), tokenId);
+            // Soft Staking: We just verify the owner holds the NFT, without transferring it
+            require(
+                nftCollection.ownerOf(tokenId) == msg.sender,
+                "Must own NFT to stake"
+            );
         }
 
         emit Staked(tokenIds, block.timestamp);
@@ -123,8 +120,7 @@ contract PrivateNFTVault is
             // Reset state
             delete vaultedNFTs[tokenId];
 
-            // Transfer out
-            nftCollection.safeTransferFrom(address(this), msg.sender, tokenId);
+            // Transfer out removed for soft staking
         }
 
         emit Unstaked(tokenIds, block.timestamp);
@@ -179,11 +175,7 @@ contract PrivateNFTVault is
             uint256 tokenId = tokenIds[i];
             if (vaultedNFTs[tokenId].owner == msg.sender) {
                 delete vaultedNFTs[tokenId];
-                nftCollection.safeTransferFrom(
-                    address(this),
-                    msg.sender,
-                    tokenId
-                );
+                // Transfer out removed for soft staking
                 withdrawnCounts++;
             }
         }
@@ -193,17 +185,5 @@ contract PrivateNFTVault is
         }
 
         emit EmergencyWithdraw(tokenIds);
-    }
-
-    /**
-     * @dev Approves the smart contract to receive ERC721s.
-     */
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 }

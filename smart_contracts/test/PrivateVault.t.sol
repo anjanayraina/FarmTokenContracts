@@ -41,7 +41,6 @@ contract PrivateNFTVaultTest is Test {
 
     function test_OnlyOwnerCanBatchStake() public {
         mockNFT.mintBatch(owner, 5);
-        mockNFT.setApprovalForAll(address(vault), true);
 
         uint256[] memory tokens = new uint256[](5);
         for (uint i = 0; i < 5; i++) {
@@ -59,7 +58,6 @@ contract PrivateNFTVaultTest is Test {
 
     function test_YieldCalculation() public {
         mockNFT.mintBatch(owner, 10);
-        mockNFT.setApprovalForAll(address(vault), true);
 
         uint256[] memory tokens = new uint256[](10);
         for (uint i = 0; i < 10; i++) {
@@ -81,7 +79,6 @@ contract PrivateNFTVaultTest is Test {
 
     function test_EmergencyWithdraw() public {
         mockNFT.mintBatch(owner, 2);
-        mockNFT.setApprovalForAll(address(vault), true);
 
         uint256[] memory tokens = new uint256[](2);
         tokens[0] = 1;
@@ -94,15 +91,5 @@ contract PrivateNFTVaultTest is Test {
         assertEq(mockNFT.ownerOf(1), owner);
         assertEq(mockNFT.ownerOf(2), owner);
         assertEq(vault.totalStaked(), 0);
-    }
-
-    // Must implement to receive the token ourselves during testing
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 }
