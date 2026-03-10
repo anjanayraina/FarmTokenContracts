@@ -10,5 +10,8 @@ module.exports = {
             url: process.env.ALCHEMY_URL || "",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
         }
+    },
+    paths: {
+        sources: "./src"
     }
 };
