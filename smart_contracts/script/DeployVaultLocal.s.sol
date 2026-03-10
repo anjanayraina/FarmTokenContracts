@@ -42,6 +42,11 @@ contract DeployVault is Script {
         PrivateNFTVault vault = new PrivateNFTVault(address(nft), address(pyt));
         console.log("PrivateNFTVault deployed at:", address(vault));
 
+        // 3.5 Mint some Mock NFTs to the Deployer so they can test staking
+        address deployer = vm.addr(deployerPrivateKey);
+        nft.mintBatch(deployer, 5);
+        console.log("Minted 5 Mock NFTs to deployer:", deployer);
+
         // 4. Fund the vault with PYT rewards
         uint256 vaultFunding = 1_000_000 * 10 ** 18;
         pyt.transfer(address(vault), vaultFunding);

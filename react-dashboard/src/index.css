@@ -187,3 +187,37 @@ body {
   color: var(--text-secondary);
   margin-bottom: 2rem;
 }
+
+/* Utilities */
+.error-box {
+  background: #7f1d1d;
+  color: #fca5a5;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #b91c1c;
+}
+
+.form-input {
+  width: 100%;
+  max-width: 300px;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-main);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}

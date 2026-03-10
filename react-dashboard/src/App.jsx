@@ -9,7 +9,12 @@ const VAULT_ABI = [
   "function rewardRatePerHour() view returns (uint256)",
   "function lastClaimTimestamp() view returns (uint256)",
   "function claimRewards() external",
-  "function batchUnstake(uint256[] calldata tokenIds) external"
+  "function batchStake(uint256[] calldata tokenIds) external",
+  "function batchUnstake(uint256[] calldata tokenIds) external",
+  "function setRewardRate(uint256 newRate) external",
+  "function pause() external",
+  "function unpause() external",
+  "function owner() view returns (address)"
 ];
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)"
@@ -29,8 +34,14 @@ function App() {
     userBalance: "0.0"
   });
   const [isClaiming, setIsClaiming] = useState(false);
+  const [isStaking, setIsStaking] = useState(false);
+  const [stakeIds, setStakeIds] = useState("");
   const [isUnstaking, setIsUnstaking] = useState(false);
   const [unstakeIds, setUnstakeIds] = useState("");
+  const [isSettingRate, setIsSettingRate] = useState(false);
+  const [newRate, setNewRate] = useState("");
+  const [isPausing, setIsPausing] = useState(false);
+  const [vaultOwner, setVaultOwner] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -52,7 +63,7 @@ function App() {
           const newSigner = await provider.getSigner();
           setSigner(newSigner);
         } catch (e) {
-          console.error(e);
+          // ignore
         }
       }
     } else {
@@ -99,7 +110,7 @@ function App() {
             console.error("Failed to add local network to MetaMask", addError);
           }
         } else {
-          console.error("Failed to switch local network", switchError);
+          // ignore switch failure
         }
       }
 
@@ -107,7 +118,6 @@ function App() {
       setSigner(activeSigner);
       setError("");
     } catch (err) {
-      console.error(err);
       setError("Failed to connect wallet. Please try again.");
     }
   };
@@ -120,11 +130,14 @@ function App() {
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, localProvider);
       const pyt = new ethers.Contract(pytAddress, ERC20_ABI, localProvider);
 
-      const [staked, pending, vaultBal] = await Promise.all([
+      const [staked, pending, vaultBal, ownerAddr] = await Promise.all([
         vault.totalStaked(),
         vault.pendingAccumulatedReward(),
-        pyt.balanceOf(vaultAddress)
+        pyt.balanceOf(vaultAddress),
+        vault.owner()
       ]);
+
+      setVaultOwner(ownerAddr);
 
       let userBal = 0n;
       if (account) {
@@ -139,7 +152,6 @@ function App() {
       });
       setError("");
     } catch (err) {
-      console.error("fetchStats Error:", err);
       setError("Failed to fetch data. Is Anvil running on localhost:8545? Are contract addresses correct?");
     }
   };
@@ -164,7 +176,6 @@ function App() {
 
       await fetchStats();
     } catch (err) {
-      console.error("Claim Error", err);
       setError("Transaction rejected or failed. Ensure Metamask is on Localhost:8545 and you have pending rewards.");
     }
     setIsClaiming(false);
@@ -186,10 +197,62 @@ function App() {
       setUnstakeIds("");
       await fetchStats();
     } catch (err) {
-      console.error("Unstake Error", err);
       setError("Unstake failed. Verify token IDs are comma-separated and currently staked by you.");
     }
     setIsUnstaking(false);
+  };
+
+  const handleStake = async () => {
+    if (!signer || !vaultAddress || !stakeIds) return;
+    setIsStaking(true);
+    setError("");
+    try {
+      const ids = stakeIds.split(',').filter(id => id.trim() !== '').map(id => BigInt(id.trim()));
+      if (ids.length === 0) throw new Error("No valid IDs provided");
+
+      const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+      const tx = await vault.batchStake(ids);
+      await tx.wait();
+
+      setStakeIds("");
+      await fetchStats();
+    } catch (err) {
+      setError("Stake failed. Verify you own these NFT IDs.");
+    }
+    setIsStaking(false);
+  };
+
+  const handleSetRate = async () => {
+    if (!signer || !vaultAddress || !newRate) return;
+    setIsSettingRate(true);
+    setError("");
+    try {
+      const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+      const rateWei = ethers.parseEther(newRate);
+      const tx = await vault.setRewardRate(rateWei);
+      await tx.wait();
+
+      setNewRate("");
+      await fetchStats();
+    } catch (err) {
+      setError("Set Rate failed. Ensure you are the owner.");
+    }
+    setIsSettingRate(false);
+  };
+
+  const togglePause = async (pauseState) => {
+    if (!signer || !vaultAddress) return;
+    setIsPausing(true);
+    setError("");
+    try {
+      const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+      const tx = await pauseState ? vault.pause() : vault.unpause();
+      await tx.wait();
+      await fetchStats();
+    } catch (err) {
+      setError("Pause/Unpause failed. Ensure you are the owner.");
+    }
+    setIsPausing(false);
   };
 
   return (
@@ -211,16 +274,12 @@ function App() {
         )}
       </header>
 
-      {error && (
-        <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #b91c1c' }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="error-box">{error}</div>}
 
       {account ? (
         <>
           {(!vaultAddress || !pytAddress) && (
-            <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #b91c1c' }}>
+            <div className="error-box">
               Missing contract environments! Deploy the contract with `forge script` first to auto-generate the .env file.
             </div>
           )}
@@ -244,50 +303,112 @@ function App() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
-            <div className="claim-section" style={{ margin: 0 }}>
-              <h3>Claim Your Rewards</h3>
-              <p>Sign the transaction with MetaMask to claim pending PYT into your wallet.</p>
-              <button
-                className="btn"
-                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
-                onClick={handleClaim}
-                disabled={isClaiming || parseFloat(stats.pending) === 0 || !vaultAddress}
-              >
-                {isClaiming ? 'Processing...' : 'Claim PYT'}
-              </button>
-            </div>
+          {vaultOwner && account.toLowerCase() === vaultOwner.toLowerCase() ? (
+            <div className="admin-grid">
+              <div className="claim-section" style={{ margin: 0 }}>
+                <h3>Claim Your Rewards</h3>
+                <p>Sign the transaction with MetaMask to claim pending PYT into your wallet.</p>
+                <button
+                  className="btn"
+                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                  onClick={handleClaim}
+                  disabled={isClaiming || parseFloat(stats.pending) === 0 || !vaultAddress}
+                >
+                  {isClaiming ? 'Processing...' : 'Claim PYT'}
+                </button>
+              </div>
 
-            <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <h3>Unstake NFTs</h3>
-              <p>Enter Token IDs you wish to pull (e.g., 1, 2, 3).</p>
+              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h3>Unstake NFTs</h3>
+                <p>Enter Token IDs you wish to pull (e.g., 1, 2, 3).</p>
 
-              <input
-                type="text"
-                placeholder="Token IDs to unstake"
-                value={unstakeIds}
-                onChange={(e) => setUnstakeIds(e.target.value)}
-                style={{
-                  width: '100%',
-                  maxWidth: '300px',
-                  marginBottom: '1rem',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-main)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-              <button
-                className="btn btn-outline"
-                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
-                onClick={handleUnstake}
-                disabled={isUnstaking || !unstakeIds || !vaultAddress}
-              >
-                {isUnstaking ? 'Processing...' : 'Unstake Tokens'}
-              </button>
+                <input
+                  type="text"
+                  placeholder="Token IDs to unstake"
+                  className="form-input"
+                  value={unstakeIds}
+                  onChange={(e) => setUnstakeIds(e.target.value)}
+                />
+                <button
+                  className="btn btn-outline"
+                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                  onClick={handleUnstake}
+                  disabled={isUnstaking || !unstakeIds || !vaultAddress}
+                >
+                  {isUnstaking ? 'Processing...' : 'Unstake Tokens'}
+                </button>
+              </div>
+
+              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h3>Stake NFTs</h3>
+                <p>Enter Token IDs you own to stake.</p>
+
+                <input
+                  type="text"
+                  placeholder="Token IDs to stake"
+                  className="form-input"
+                  value={stakeIds}
+                  onChange={(e) => setStakeIds(e.target.value)}
+                />
+                <button
+                  className="btn btn-outline"
+                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                  onClick={handleStake}
+                  disabled={isStaking || !stakeIds || !vaultAddress}
+                >
+                  {isStaking ? 'Processing...' : 'Stake Tokens'}
+                </button>
+              </div>
+
+              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h3>Admin Controls</h3>
+                <p>Manage vault parameters (Owner only).</p>
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', width: '100%', maxWidth: '300px' }}>
+                  <input
+                    type="text"
+                    placeholder="Rate (e.g. 1.5 PYT/hr)"
+                    className="form-input"
+                    style={{ marginBottom: 0, flex: 1 }}
+                    value={newRate}
+                    onChange={(e) => setNewRate(e.target.value)}
+                  />
+                  <button
+                    className="btn btn-outline"
+                    onClick={handleSetRate}
+                    disabled={isSettingRate || !newRate || !vaultAddress}
+                  >
+                    Set Rate
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                  <button
+                    className="btn btn-outline"
+                    style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                    onClick={() => togglePause(true)}
+                    disabled={isPausing || !vaultAddress}
+                  >
+                    Pause
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    style={{ borderColor: '#10b981', color: '#10b981' }}
+                    onClick={() => togglePause(false)}
+                    disabled={isPausing || !vaultAddress}
+                  >
+                    Unpause
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="claim-section" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+              <Activity size={48} style={{ margin: '0 auto 1rem', opacity: 0.2 }} />
+              <h3>Vault is Restricted</h3>
+              <p style={{ margin: 0 }}>Only the hardware wallet owner <strong>({vaultOwner.slice(0, 6)}...{vaultOwner.slice(-4)})</strong> can execute staking, unstaking, or claims.</p>
+            </div>
+          )}
         </>
       ) : (
         <div style={{ textAlign: 'center', padding: '6rem 0', color: 'var(--text-secondary)' }}>

@@ -86,12 +86,6 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
                 timestamp: block.timestamp,
                 owner: msg.sender
             });
-
-            // Soft Staking: We just verify the owner holds the NFT, without transferring it
-            require(
-                nftCollection.ownerOf(tokenId) == msg.sender,
-                "Must own NFT to stake"
-            );
         }
 
         emit Staked(tokenIds, block.timestamp);
@@ -112,10 +106,6 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
-            require(
-                vaultedNFTs[tokenId].owner == msg.sender,
-                "Not owner/vaulted"
-            );
 
             // Reset state
             delete vaultedNFTs[tokenId];
