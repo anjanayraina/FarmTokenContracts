@@ -13,8 +13,9 @@ const VAULT_ABI = [
   "function batchUnstake(uint256[] calldata tokenIds) external",
   "function setRewardRate(uint256 newRate) external",
   "function pause() external",
-  "function unpause() external",
-  "function owner() view returns (address)"
+  "function paused() view returns (bool)",
+  "event Staked(uint256[] tokenIds, uint256 timestamp)",
+  "event Unstaked(uint256[] tokenIds, uint256 timestamp)"
 ];
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)"
@@ -31,7 +32,10 @@ function App() {
     staked: "0",
     pending: "0.0",
     vaultReserve: "0.0",
-    userBalance: "0.0"
+    userBalance: "0.0",
+    rewardRate: "0.0",
+    isPaused: false,
+    stakedIds: []
   });
   const [isClaiming, setIsClaiming] = useState(false);
   const [isStaking, setIsStaking] = useState(false);
@@ -130,11 +134,13 @@ function App() {
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, localProvider);
       const pyt = new ethers.Contract(pytAddress, ERC20_ABI, localProvider);
 
-      const [staked, pending, vaultBal, ownerAddr] = await Promise.all([
+      const [staked, pending, vaultBal, ownerAddr, rateWei, pausedStatus] = await Promise.all([
         vault.totalStaked(),
         vault.pendingAccumulatedReward(),
         pyt.balanceOf(vaultAddress),
-        vault.owner()
+        vault.owner(),
+        vault.rewardRatePerHour(),
+        vault.paused()
       ]);
 
       setVaultOwner(ownerAddr);
@@ -144,11 +150,27 @@ function App() {
         userBal = await pyt.balanceOf(account);
       }
 
+      // Calculate the specific explicitly Staked IDs from Events
+      const stakedLogs = await vault.queryFilter(vault.filters.Staked());
+      const unstakedLogs = await vault.queryFilter(vault.filters.Unstaked());
+
+      const activeIds = new Set();
+      stakedLogs.forEach(log => {
+        log.args[0].forEach(id => activeIds.add(id.toString()));
+      });
+      unstakedLogs.forEach(log => {
+        log.args[0].forEach(id => activeIds.delete(id.toString()));
+      });
+      const currentStakedIds = Array.from(activeIds).sort((a, b) => Number(a) - Number(b));
+
       setStats({
         staked: staked.toString(),
         pending: ethers.formatEther(pending),
         vaultReserve: ethers.formatEther(vaultBal),
-        userBalance: ethers.formatEther(userBal)
+        userBalance: ethers.formatEther(userBal),
+        rewardRate: ethers.formatEther(rateWei),
+        isPaused: pausedStatus,
+        stakedIds: currentStakedIds
       });
       setError("");
     } catch (err) {
@@ -303,112 +325,120 @@ function App() {
             </div>
           </div>
 
-          {vaultOwner && account.toLowerCase() === vaultOwner.toLowerCase() ? (
-            <div className="admin-grid">
-              <div className="claim-section" style={{ margin: 0 }}>
-                <h3>Claim Your Rewards</h3>
-                <p>Sign the transaction with MetaMask to claim pending PYT into your wallet.</p>
-                <button
-                  className="btn"
-                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
-                  onClick={handleClaim}
-                  disabled={isClaiming || parseFloat(stats.pending) === 0 || !vaultAddress}
-                >
-                  {isClaiming ? 'Processing...' : 'Claim PYT'}
-                </button>
+          <div className="admin-grid">
+            {vaultOwner && account.toLowerCase() !== vaultOwner.toLowerCase() && (
+              <div style={{ gridColumn: '1 / -1', background: '#374151', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+                <p style={{ margin: 0 }}><strong>Note:</strong> You are not connected with the vault owner wallet. Executing transactions may fail.</p>
               </div>
+            )}
 
-              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h3>Unstake NFTs</h3>
-                <p>Enter Token IDs you wish to pull (e.g., 1, 2, 3).</p>
+            <div className="claim-section" style={{ margin: 0 }}>
+              <h3>Claim Your Rewards</h3>
+              <p>Sign the transaction with MetaMask to claim pending PYT into your wallet.</p>
+              <button
+                className="btn"
+                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                onClick={handleClaim}
+                disabled={isClaiming || parseFloat(stats.pending) === 0 || !vaultAddress}
+              >
+                {isClaiming ? 'Processing...' : 'Claim PYT'}
+              </button>
+            </div>
 
+            <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h3>Unstake NFTs</h3>
+              <p>Vault currently holds <strong>{stats.staked} NFTs</strong>.</p>
+
+              {stats.stakedIds && stats.stakedIds.length > 0 && (
+                <div style={{ marginBottom: '1.5rem', background: '#374151', padding: '0.75rem', borderRadius: '8px', width: '100%', maxWidth: '300px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>Currently Staked IDs</span>
+                  <strong style={{ color: 'var(--accent-blue)', letterSpacing: '1px' }}>{stats.stakedIds.join(", ")}</strong>
+                </div>
+              )}
+
+              <input
+                type="text"
+                placeholder="Token IDs to unstake"
+                className="form-input"
+                value={unstakeIds}
+                onChange={(e) => setUnstakeIds(e.target.value)}
+              />
+              <button
+                className="btn btn-outline"
+                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                onClick={handleUnstake}
+                disabled={isUnstaking || !unstakeIds || !vaultAddress}
+              >
+                {isUnstaking ? 'Processing...' : 'Unstake Tokens'}
+              </button>
+            </div>
+
+            <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h3>Stake NFTs</h3>
+              <p>Enter Token IDs you own to stake.</p>
+
+              <input
+                type="text"
+                placeholder="Token IDs to stake"
+                className="form-input"
+                value={stakeIds}
+                onChange={(e) => setStakeIds(e.target.value)}
+              />
+              <button
+                className="btn btn-outline"
+                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                onClick={handleStake}
+                disabled={isStaking || !stakeIds || !vaultAddress}
+              >
+                {isStaking ? 'Processing...' : 'Stake Tokens'}
+              </button>
+            </div>
+
+            <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h3>Admin Controls</h3>
+              <p>
+                Status: <strong style={{ color: stats.isPaused ? '#ef4444' : '#10b981' }}>{stats.isPaused ? 'PAUSED' : 'ACTIVE'}</strong> |
+                Rate: <strong>{stats.rewardRate} PYT/hr</strong>
+              </p>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', width: '100%', maxWidth: '300px' }}>
                 <input
                   type="text"
-                  placeholder="Token IDs to unstake"
+                  placeholder="Rate (e.g. 1.5 PYT/hr)"
                   className="form-input"
-                  value={unstakeIds}
-                  onChange={(e) => setUnstakeIds(e.target.value)}
+                  style={{ marginBottom: 0, flex: 1 }}
+                  value={newRate}
+                  onChange={(e) => setNewRate(e.target.value)}
                 />
                 <button
                   className="btn btn-outline"
-                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
-                  onClick={handleUnstake}
-                  disabled={isUnstaking || !unstakeIds || !vaultAddress}
+                  onClick={handleSetRate}
+                  disabled={isSettingRate || !newRate || !vaultAddress}
                 >
-                  {isUnstaking ? 'Processing...' : 'Unstake Tokens'}
+                  Set Rate
                 </button>
               </div>
 
-              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h3>Stake NFTs</h3>
-                <p>Enter Token IDs you own to stake.</p>
-
-                <input
-                  type="text"
-                  placeholder="Token IDs to stake"
-                  className="form-input"
-                  value={stakeIds}
-                  onChange={(e) => setStakeIds(e.target.value)}
-                />
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
                 <button
                   className="btn btn-outline"
-                  style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
-                  onClick={handleStake}
-                  disabled={isStaking || !stakeIds || !vaultAddress}
+                  style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                  onClick={() => togglePause(true)}
+                  disabled={isPausing || !vaultAddress}
                 >
-                  {isStaking ? 'Processing...' : 'Stake Tokens'}
+                  Pause
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{ borderColor: '#10b981', color: '#10b981' }}
+                  onClick={() => togglePause(false)}
+                  disabled={isPausing || !vaultAddress}
+                >
+                  Unpause
                 </button>
               </div>
-
-              <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h3>Admin Controls</h3>
-                <p>Manage vault parameters (Owner only).</p>
-
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', width: '100%', maxWidth: '300px' }}>
-                  <input
-                    type="text"
-                    placeholder="Rate (e.g. 1.5 PYT/hr)"
-                    className="form-input"
-                    style={{ marginBottom: 0, flex: 1 }}
-                    value={newRate}
-                    onChange={(e) => setNewRate(e.target.value)}
-                  />
-                  <button
-                    className="btn btn-outline"
-                    onClick={handleSetRate}
-                    disabled={isSettingRate || !newRate || !vaultAddress}
-                  >
-                    Set Rate
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <button
-                    className="btn btn-outline"
-                    style={{ borderColor: '#ef4444', color: '#ef4444' }}
-                    onClick={() => togglePause(true)}
-                    disabled={isPausing || !vaultAddress}
-                  >
-                    Pause
-                  </button>
-                  <button
-                    className="btn btn-outline"
-                    style={{ borderColor: '#10b981', color: '#10b981' }}
-                    onClick={() => togglePause(false)}
-                    disabled={isPausing || !vaultAddress}
-                  >
-                    Unpause
-                  </button>
-                </div>
-              </div>
             </div>
-          ) : (
-            <div className="claim-section" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-              <Activity size={48} style={{ margin: '0 auto 1rem', opacity: 0.2 }} />
-              <h3>Vault is Restricted</h3>
-              <p style={{ margin: 0 }}>Only the hardware wallet owner <strong>({vaultOwner.slice(0, 6)}...{vaultOwner.slice(-4)})</strong> can execute staking, unstaking, or claims.</p>
-            </div>
-          )}
+          </div>
         </>
       ) : (
         <div style={{ textAlign: 'center', padding: '6rem 0', color: 'var(--text-secondary)' }}>

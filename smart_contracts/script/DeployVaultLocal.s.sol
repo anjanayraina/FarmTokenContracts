@@ -24,7 +24,7 @@ contract DeployVault is Script {
         uint256 deployerPrivateKey = vm.envOr(
             "PRIVATE_KEY",
             uint256(
-                0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+                0xb707c5fc7b8a88faaf04e01eef1159eac006a544aecfedd81a670f83aa951ade
             )
         );
 
