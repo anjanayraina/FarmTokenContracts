@@ -64,7 +64,10 @@ contract DeployVault is Script {
             "\n",
             "VITE_PYT_ADDRESS=",
             vm.toString(address(pyt)),
-            "\n"
+            "\n",
+            "VITE_CHAIN_ID=31337\n",
+            "VITE_NETWORK_NAME=Anvil Localhost\n",
+            "VITE_RPC_URL=http://localhost:8545\n"
         );
         vm.writeFile("../react-dashboard/.env", envContent);
     }

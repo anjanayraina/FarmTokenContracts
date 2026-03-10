@@ -25,8 +25,12 @@ const ERC20_ABI = [
 
 function App() {
   const [account, setAccount] = useState("");
-  const vaultAddress = "0x12A1B6B89B782F2b222BC13237C766f1E6A9e12C";
-  const pytAddress = "0xAc6E4Cc5B6Ab072C8DFeAb54dd174F7A8F560e97";
+  const vaultAddress = import.meta.env.VITE_VAULT_ADDRESS || "";
+  const pytAddress = import.meta.env.VITE_PYT_ADDRESS || "";
+  const rpcUrl = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+  const chainIdInt = parseInt(import.meta.env.VITE_CHAIN_ID || "31337");
+  const chainIdHex = "0x" + chainIdInt.toString(16);
+  const networkName = import.meta.env.VITE_NETWORK_NAME || "Anvil Localhost";
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
 
@@ -91,11 +95,11 @@ function App() {
       const accounts = await browserProvider.send("eth_requestAccounts", []);
       setAccount(accounts[0]);
 
-      // Request network switch to Localhost (Anvil default is 31337 / 0x7a69)
+      // Request network switch dynamically
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x7a69' }], // 31337 in hex
+          params: [{ chainId: chainIdHex }],
         });
       } catch (switchError) {
         // This error code indicates that the chain has not been added to MetaMask.
@@ -105,9 +109,9 @@ function App() {
               method: 'wallet_addEthereumChain',
               params: [
                 {
-                  chainId: '0x7a69',
-                  chainName: 'Anvil Localhost',
-                  rpcUrls: ['http://127.0.0.1:8545'],
+                  chainId: chainIdHex,
+                  chainName: networkName,
+                  rpcUrls: [rpcUrl],
                   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
                 },
               ],
@@ -131,8 +135,8 @@ function App() {
   const fetchStats = async () => {
     if (!ethers.isAddress(vaultAddress) || !ethers.isAddress(pytAddress)) return;
     try {
-      // Always use local node for reliable read data regardless of Metamask state
-      const localProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+      // Always use node config for reliable read data regardless of Metamask state
+      const localProvider = new ethers.JsonRpcProvider(rpcUrl);
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, localProvider);
       const pyt = new ethers.Contract(pytAddress, ERC20_ABI, localProvider);
 
