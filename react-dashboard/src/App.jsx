@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { Wallet, Signal, CheckCircle2, AlertCircle, RefreshCw, Layers, Clock, TrendingUp, Vault } from 'lucide-react';
+import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2 } from 'lucide-react';
 import './index.css';
 
 const VAULT_ABI = [
@@ -15,291 +15,197 @@ const ERC20_ABI = [
 ];
 
 function App() {
-  const [vaultAddress, setVaultAddress] = useState("");
-  const [pytAddress, setPytAddress] = useState("");
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false);
+  const [account, setAccount] = useState("");
+  const vaultAddress = import.meta.env.VITE_VAULT_ADDRESS || "";
+  const pytAddress = import.meta.env.VITE_PYT_ADDRESS || "";
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
 
-  // Contract instance references
-  const providerRef = useRef(null);
-  const signerRef = useRef(null);
-  const vaultRef = useRef(null);
-  const pytRef = useRef(null);
-
-  // Blockchain State
-  const [chainData, setChainData] = useState({
-    totalStaked: 0n,
-    pendingReward: 0n,
-    rewardRate: 0n,
-    lastClaimTime: 0n,
-    poolBal: 0n,
+  const [stats, setStats] = useState({
+    staked: "0",
+    pending: "0.0",
+    vaultReserve: "0.0",
+    userBalance: "0.0"
   });
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [error, setError] = useState("");
 
-  // Ticker state strictly for the UI
-  const [livePending, setLivePending] = useState("0.00000");
-
-  const connectWallet = async () => {
+  useEffect(() => {
     if (window.ethereum) {
-      try {
-        const browserProvider = new ethers.BrowserProvider(window.ethereum);
-        await browserProvider.send("eth_requestAccounts", []);
-        const signer = await browserProvider.getSigner();
-        const address = await signer.getAddress();
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+    }
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      }
+    }
+  }, [provider]); // Depend on provider
 
-        signerRef.current = signer;
-        setWalletAddress(address);
-
-        // Re-bind vault contract if already active
-        if (vaultRef.current) {
-          vaultRef.current = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+  const handleAccountsChanged = async (accounts) => {
+    if (accounts.length > 0) {
+      setAccount(accounts[0]);
+      if (provider) {
+        try {
+          const newSigner = await provider.getSigner();
+          setSigner(newSigner);
+        } catch (e) {
+          console.error(e);
         }
-      } catch (err) {
-        console.error(err);
       }
     } else {
-      alert("No valid Web3 provider found. Read-only dashboard will still function.");
+      setAccount("");
+      setSigner(null);
+      setProvider(null);
     }
   };
 
-  const startSync = async () => {
-    setErrorMsg("");
-
-    if (!ethers.isAddress(vaultAddress) || !ethers.isAddress(pytAddress)) {
-      setErrorMsg("Please provide accurate EVM addresses for local Anvil contracts.");
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      setError("Please install MetaMask!");
       return;
     }
-
-    setIsSyncing(true);
     try {
-      // Connect specifically to local network fork
-      const localProvider = new ethers.JsonRpcProvider("http://localhost:8545");
-      await localProvider.getBlockNumber(); // Test connection
-      providerRef.current = localProvider;
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      setProvider(browserProvider);
 
-      const activeRunner = signerRef.current ? signerRef.current : localProvider;
+      const accounts = await browserProvider.send("eth_requestAccounts", []);
+      setAccount(accounts[0]);
 
-      vaultRef.current = new ethers.Contract(vaultAddress, VAULT_ABI, activeRunner);
-      pytRef.current = new ethers.Contract(pytAddress, ERC20_ABI, localProvider); // Only reading for strictly reserves
-
-      setIsConnected(true);
-      await fetchBlockchainData();
+      const activeSigner = await browserProvider.getSigner();
+      setSigner(activeSigner);
+      setError("");
     } catch (err) {
       console.error(err);
-      setErrorMsg("Connection failed. Is your local Anvil node heavily running on port 8545?");
+      setError("Failed to connect wallet. Please try again.");
     }
-    setIsSyncing(false);
   };
 
-  const fetchBlockchainData = async () => {
-    if (!vaultRef.current || !pytRef.current) return;
-
+  const fetchStats = async () => {
+    if (!signer || !ethers.isAddress(vaultAddress) || !ethers.isAddress(pytAddress)) return;
     try {
-      const [totalStaked, pending, rate, lastClaimTime, poolBal] = await Promise.all([
-        vaultRef.current.totalStaked(),
-        vaultRef.current.pendingAccumulatedReward(),
-        vaultRef.current.rewardRatePerHour(),
-        vaultRef.current.lastClaimTimestamp(),
-        pytRef.current.balanceOf(vaultAddress)
+      const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+      const pyt = new ethers.Contract(pytAddress, ERC20_ABI, signer);
+
+      const [staked, pending, vaultBal, userBal] = await Promise.all([
+        vault.totalStaked(),
+        vault.pendingAccumulatedReward(),
+        pyt.balanceOf(vaultAddress),
+        pyt.balanceOf(account)
       ]);
 
-      setChainData({ totalStaked, pendingReward: pending, rewardRate: rate, lastClaimTime, poolBal });
-      setLivePending(ethers.formatEther(pending));
-
-    } catch (e) {
-      console.error("Fetch Data Error:", e);
-      setErrorMsg("Contract interaction error. Verify addresses are deployed precisely there.");
+      setStats({
+        staked: staked.toString(),
+        pending: ethers.formatEther(pending),
+        vaultReserve: ethers.formatEther(vaultBal),
+        userBalance: ethers.formatEther(userBal)
+      });
+      setError("");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch data from blockchain. Verify contract addresses and network.");
     }
   };
 
+  // Poll for updates every 10 seconds
+  useEffect(() => {
+    if (account && vaultAddress && pytAddress && signer) {
+      fetchStats();
+      const interval = setInterval(fetchStats, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [account, vaultAddress, pytAddress, signer]);
+
   const handleClaim = async () => {
-    if (!vaultRef.current || !signerRef.current) return;
+    if (!signer || !vaultAddress) return;
     setIsClaiming(true);
+    setError("");
     try {
-      const tx = await vaultRef.current.claimRewards();
+      const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
+      const tx = await vault.claimRewards();
       await tx.wait();
-      await fetchBlockchainData();
-    } catch (e) {
-      console.error(e);
-      alert("Transaction failed! Review Anvil logs.");
+
+      // Update stats immediately post confirmation
+      await fetchStats();
+    } catch (err) {
+      console.error(err);
+      setError("Transaction rejected or failed. Ensure you are the vault owner with pending rewards.");
     }
     setIsClaiming(false);
   };
 
-  // Dedicated ticker loop
-  useEffect(() => {
-    let interval;
-    if (isConnected && chainData.totalStaked > 0n && chainData.rewardRate > 0n) {
-      interval = setInterval(() => {
-        const nowUnix = BigInt(Math.floor(Date.now() / 1000));
-        const secondsPassed = nowUnix - chainData.lastClaimTime;
-
-        // Exact formula matching Vault's math: totalStaked * hoursPassed * ratePerHour
-        const accrued = (chainData.totalStaked * secondsPassed * chainData.rewardRate) / 3600n;
-        const totalLivePending = chainData.pendingReward + accrued;
-
-        setLivePending(parseFloat(ethers.formatEther(totalLivePending)).toFixed(5));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isConnected, chainData]);
-
-  // Periodic chain sync
-  useEffect(() => {
-    let interval;
-    if (isConnected) {
-      interval = setInterval(() => fetchBlockchainData(), 15000);
-    }
-    return () => clearInterval(interval);
-  }, [isConnected]);
-
   return (
-    <>
-      <header className="app-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div className="status-dot"></div>
-          <h2 style={{ letterSpacing: '2px', fontWeight: 800 }}>Treasury <span className="gradient-text">Node</span></h2>
+    <div className="container">
+      <header className="header">
+        <div className="logo">
+          <Activity color="var(--accent-blue)" />
+          Yield Dashboard
         </div>
-
-        {walletAddress ? (
-          <div className="connection-badge">
-            <CheckCircle2 size={18} />
-            {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)} Connected
+        {account ? (
+          <div className="btn btn-outline" style={{ cursor: 'default' }}>
+            <CheckCircle2 size={18} color="var(--accent-blue)" />
+            {account.slice(0, 6)}...{account.slice(-4)}
           </div>
         ) : (
-          <button className="btn-primary" onClick={connectWallet} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>Connect Hardware Auth</span>
-            <Wallet size={18} style={{ zIndex: 1, position: 'relative' }} />
+          <button className="btn" onClick={connectWallet}>
+            <Wallet size={18} /> Connect MetaMask
           </button>
         )}
       </header>
 
-      <main className="main-content">
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h1 style={{ fontSize: '3.5rem', fontWeight: 800, lineHeight: 1.1 }}>
-            Enterprise <br />
-            <span className="gradient-text">Yield Management</span>
-          </h1>
-          <p style={{ color: 'var(--text-dim)', fontSize: '1.2rem', maxWidth: '600px', margin: '0 auto' }}>
-            Real-time read-only oversight mapped natively to your internal EVM environment. Ensure high-stakes operations are tracked securely offline.
-          </p>
+      {error && (
+        <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #b91c1c' }}>
+          {error}
         </div>
+      )}
 
-        {/* Configuration Setup */}
-        <div className="glass-panel setup-panel">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <Signal className="gradient-text" size={24} />
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 600 }}>Local Network Binding</h2>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
-            <div className="input-group">
-              <label>Private Vault Contract</label>
-              <input
-                type="text"
-                placeholder="0x..."
-                value={vaultAddress}
-                onChange={(e) => setVaultAddress(e.target.value)}
-                disabled={isConnected}
-              />
-            </div>
-
-            <div className="input-group">
-              <label>PYT Reward Asset</label>
-              <input
-                type="text"
-                placeholder="0x..."
-                value={pytAddress}
-                onChange={(e) => setPytAddress(e.target.value)}
-                disabled={isConnected}
-              />
-            </div>
-          </div>
-
-          {!isConnected ? (
-            <button className="btn-primary" onClick={startSync} disabled={isSyncing} style={{ alignSelf: 'flex-start', marginTop: '10px' }}>
-              <span>{isSyncing ? 'Binding...' : 'Initialize Secure Sync'}</span>
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-green)', fontWeight: 600 }}>
-              <CheckCircle2 size={18} /> Network Bond Established
-              <button onClick={fetchBlockchainData} style={{ background: 'transparent', color: 'var(--text-dim)', marginLeft: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <RefreshCw size={14} /> Force Poll
-              </button>
+      {account ? (
+        <>
+          {(!vaultAddress || !pytAddress) && (
+            <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #b91c1c' }}>
+              Missing contract environments! Deploy the contract with `forge script` first to auto-generate the .env file.
             </div>
           )}
 
-          {errorMsg && (
-            <div style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', marginTop: '10px' }}>
-              <AlertCircle size={18} /> {errorMsg}
+          <div className="grid">
+            <div className="card">
+              <div className="card-title"><Layers size={16} /> Total Staked</div>
+              <div className="card-value">{stats.staked} <span>NFTs</span></div>
             </div>
-          )}
-        </div>
-
-        {/* Display Statistics */}
-        <div className="dashboard-grid">
-
-          {/* Static Mandate - Portfolio Value */}
-          <div className="glass-panel stat-card card-hover">
-            <div className="stat-title"><Vault size={18} /> Portfolio Valuation</div>
-            <div className="stat-value mono">$112M <span className="unit">USD</span></div>
-            <div className="stat-desc">Hardcoded compliance target defined via corporate mandate.</div>
+            <div className="card">
+              <div className="card-title"><TrendingUp size={16} /> Pending Yield</div>
+              <div className="card-value">{parseFloat(stats.pending).toFixed(4)} <span>PYT</span></div>
+            </div>
+            <div className="card">
+              <div className="card-title"><Activity size={16} /> Vault Reserves</div>
+              <div className="card-value">{parseFloat(stats.vaultReserve).toLocaleString(undefined, { maximumFractionDigits: 2 })} <span>PYT</span></div>
+            </div>
+            <div className="card">
+              <div className="card-title"><Coins size={16} /> Your Balance</div>
+              <div className="card-value">{parseFloat(stats.userBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} <span>PYT</span></div>
+            </div>
           </div>
 
-          {/* Locked Assets */}
-          <div className="glass-panel stat-card card-hover">
-            <div className="stat-title"><Layers size={18} /> Locked NFT Inventory</div>
-            <div className="stat-value mono">
-              {isConnected ? chainData.totalStaked.toString() : '--'}
-              <span className="unit">STAKED</span>
-            </div>
-            <div className="stat-desc">Provably secure within vault architecture.</div>
-          </div>
-
-          {/* Pending Ticker */}
-          <div className="glass-panel stat-card card-hover" style={{ borderColor: 'rgba(0, 240, 255, 0.2)' }}>
-            <div className="stat-title gradient-text"><TrendingUp size={18} /> Live Pending Yield</div>
-            <div className="stat-value mono" style={{ color: 'var(--accent-cyan)', textShadow: '0 0 15px rgba(0, 240, 255, 0.3)' }}>
-              {isConnected ? livePending : '--'}
-              <span className="unit" style={{ color: 'var(--accent-cyan)' }}>PYT</span>
-            </div>
-            <div className="stat-desc">Accumulating dynamically via offline contract emission math.</div>
-          </div>
-
-          {/* Vault Balance */}
-          <div className="glass-panel stat-card card-hover">
-            <div className="stat-title"><RefreshCw size={18} /> Treasury Liquidity</div>
-            <div className="stat-value mono">
-              {isConnected ? parseFloat(ethers.formatEther(chainData.poolBal)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--'}
-              <span className="unit">PYT</span>
-            </div>
-            <div className="stat-desc">Available tokens awaiting distribution routing.</div>
-          </div>
-
-        </div>
-
-        {/* Action Bottom */}
-        {isConnected && (
-          <div className="action-bar">
+          <div className="claim-section">
+            <h3>Claim Your Rewards</h3>
+            <p>Sign the transaction with MetaMask to claim pending PYT into your wallet.</p>
             <button
-              className="btn-primary"
-              disabled={!walletAddress || isClaiming || chainData.pendingReward === 0n}
+              className="btn"
+              style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
               onClick={handleClaim}
-              style={{ borderRadius: '50px' }}
+              disabled={isClaiming || parseFloat(stats.pending) === 0 || !vaultAddress}
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem' }}>
-                {isClaiming ? <RefreshCw size={20} className="spin" /> : <Clock size={20} />}
-                {isClaiming ? 'Executing Blockchain Call...' : 'Claim Authorized Offline Rewards'}
-              </span>
+              {isClaiming ? 'Processing...' : 'Claim PYT'}
             </button>
-            {!walletAddress && <div style={{ marginLeft: '20px', color: 'var(--text-dim)', alignSelf: 'center' }}>Authentication restricted. Connect signer.</div>}
           </div>
-        )}
-
-      </main>
-    </>
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '6rem 0', color: 'var(--text-secondary)' }}>
+          <Wallet size={64} style={{ marginBottom: '1.5rem', opacity: 0.5 }} />
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>Connect your wallet to manage yield</h2>
+          <p style={{ marginTop: '0.75rem' }}>View staked assets, monitor vault balances, and collect pending PYT rewards.</p>
+        </div>
+      )}
+    </div>
   );
 }
 

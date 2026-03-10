@@ -52,5 +52,15 @@ contract DeployVault is Script {
         );
 
         vm.stopBroadcast();
+
+        string memory envContent = string.concat(
+            "VITE_VAULT_ADDRESS=",
+            vm.toString(address(vault)),
+            "\n",
+            "VITE_PYT_ADDRESS=",
+            vm.toString(address(pyt)),
+            "\n"
+        );
+        vm.writeFile("../react-dashboard/.env", envContent);
     }
 }
