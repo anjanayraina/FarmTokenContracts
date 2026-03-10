@@ -13,6 +13,8 @@ const VAULT_ABI = [
   "function batchUnstake(uint256[] calldata tokenIds) external",
   "function setRewardRate(uint256 newRate) external",
   "function pause() external",
+  "function unpause() external",
+  "function owner() view returns (address)",
   "function paused() view returns (bool)",
   "event Staked(uint256[] tokenIds, uint256 timestamp)",
   "event Unstaked(uint256[] tokenIds, uint256 timestamp)"
@@ -23,8 +25,8 @@ const ERC20_ABI = [
 
 function App() {
   const [account, setAccount] = useState("");
-  const vaultAddress = import.meta.env.VITE_VAULT_ADDRESS || "";
-  const pytAddress = import.meta.env.VITE_PYT_ADDRESS || "";
+  const vaultAddress = "0x12A1B6B89B782F2b222BC13237C766f1E6A9e12C";
+  const pytAddress = "0xAc6E4Cc5B6Ab072C8DFeAb54dd174F7A8F560e97";
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
 
@@ -174,7 +176,8 @@ function App() {
       });
       setError("");
     } catch (err) {
-      setError("Failed to fetch data. Is Anvil running on localhost:8545? Are contract addresses correct?");
+      console.error("fetchStats Error:", err);
+      setError(`Fetch Failed: ${err.message || err.toString()}`);
     }
   };
 
