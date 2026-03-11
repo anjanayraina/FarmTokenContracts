@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2 } from 'lucide-react';
+import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2, RefreshCw } from 'lucide-react';
 import './index.css';
 
 const VAULT_ABI = [
   "function totalStaked() view returns (uint256)",
-  "function pendingAccumulatedReward() view returns (uint256)",
+  "function getPendingRewards() view returns (uint256)",
   "function rewardRatePerHour() view returns (uint256)",
   "function lastClaimTimestamp() view returns (uint256)",
   "function claimRewards() external",
@@ -53,6 +53,7 @@ function App() {
   const [isPausing, setIsPausing] = useState(false);
   const [vaultOwner, setVaultOwner] = useState("");
   const [error, setError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (window.ethereum) {
@@ -134,15 +135,22 @@ function App() {
 
   const fetchStats = async () => {
     if (!ethers.isAddress(vaultAddress) || !ethers.isAddress(pytAddress)) return;
+    setIsRefreshing(true);
     try {
       // Always use node config for reliable read data regardless of Metamask state
       const localProvider = new ethers.JsonRpcProvider(rpcUrl);
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, localProvider);
       const pyt = new ethers.Contract(pytAddress, ERC20_ABI, localProvider);
 
+      // Force Anvil to mine a transparent block locally to advance the `block.timestamp` 
+      // otherwise view functions return frozen time between active transactions.
+      if (rpcUrl.includes('127.0.0.1') || rpcUrl.includes('localhost')) {
+        try { await localProvider.send("evm_mine", []); } catch (e) { /* ignore production */ }
+      }
+
       const [staked, pending, vaultBal, ownerAddr, rateWei, pausedStatus] = await Promise.all([
         vault.totalStaked(),
-        vault.pendingAccumulatedReward(),
+        vault.getPendingRewards(),
         pyt.balanceOf(vaultAddress),
         vault.owner(),
         vault.rewardRatePerHour(),
@@ -182,14 +190,16 @@ function App() {
     } catch (err) {
       console.error("fetchStats Error:", err);
       setError(`Fetch Failed: ${err.message || err.toString()}`);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  // Poll for updates every 10 seconds (Runs even without Metamask to show dashboard)
+  // Poll for updates every 5 seconds (Runs even without Metamask to show dashboard)
   useEffect(() => {
     if (vaultAddress && pytAddress) {
       fetchStats();
-      const interval = setInterval(fetchStats, 10000);
+      const interval = setInterval(fetchStats, 5000);
       return () => clearInterval(interval);
     }
   }, [account, vaultAddress, pytAddress]);
@@ -312,6 +322,21 @@ function App() {
               Missing contract environments! Deploy the contract with `forge script` first to auto-generate the .env file.
             </div>
           )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <button
+              className="btn btn-outline"
+              onClick={fetchStats}
+              disabled={isRefreshing}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.5rem 1rem', fontSize: '0.9rem'
+              }}
+            >
+              <RefreshCw size={16} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
+              {isRefreshing ? 'Syncing...' : 'Refresh Feed'}
+            </button>
+          </div>
 
           <div className="grid">
             <div className="card">

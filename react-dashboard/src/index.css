@@ -221,3 +221,13 @@ body {
   gap: 1.5rem;
   margin-top: 1.5rem;
 }
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

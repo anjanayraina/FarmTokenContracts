@@ -117,6 +117,22 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
+     * @dev Returns the total pending accumulated rewards, including the dynamically accrued yield since last manual sync.
+     */
+    function getPendingRewards() external view returns (uint256) {
+        if (totalStaked == 0) {
+            return pendingAccumulatedReward;
+        }
+
+        uint256 hoursPassed = ((block.timestamp - lastClaimTimestamp) * 1e18) /
+            1 hours;
+        uint256 yieldAccrued = (totalStaked * hoursPassed * rewardRatePerHour) /
+            1e18;
+
+        return pendingAccumulatedReward + yieldAccrued;
+    }
+
+    /**
      * @dev Claim all compiled rewards across all staked items natively.
      */
     function claimRewards() external onlyOwner nonReentrant {
