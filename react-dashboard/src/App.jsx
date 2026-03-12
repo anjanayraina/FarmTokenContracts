@@ -198,12 +198,10 @@ function App() {
     }
   };
 
-  // Poll for updates every 5 seconds (Runs even without Metamask to show dashboard)
+  // Fetch once on wallet connect / address change only — no polling
   useEffect(() => {
     if (vaultAddress && pytAddress) {
       fetchStats();
-      const interval = setInterval(fetchStats, 5000);
-      return () => clearInterval(interval);
     }
   }, [account, vaultAddress, pytAddress]);
 
@@ -435,10 +433,25 @@ function App() {
               <p>Vault currently holds <strong>{stats.staked} NFTs</strong>.</p>
 
               {stats.stakedIds && stats.stakedIds.length > 0 && (
-                <div style={{ marginBottom: '1.5rem', background: '#374151', padding: '0.75rem', borderRadius: '8px', width: '100%', maxWidth: '300px', textAlign: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>Currently Staked IDs</span>
-                  <strong style={{ color: 'var(--accent-blue)', letterSpacing: '1px' }}>{stats.stakedIds.join(", ")}</strong>
-                </div>
+                <button
+                  className="btn btn-outline"
+                  style={{ marginBottom: '1rem', padding: '0.5rem 1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  onClick={() => {
+                    const content = stats.stakedIds.join('\n');
+                    const blob = new Blob([content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `staked_ids_${new Date().toISOString().split('T')[0]}.txt`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Upload size={14} style={{ transform: 'rotate(180deg)' }} />
+                  Download Staked IDs ({stats.stakedIds.length})
+                </button>
               )}
 
               <div style={{ width: '100%', maxWidth: '300px', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
