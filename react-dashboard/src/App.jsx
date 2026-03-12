@@ -231,7 +231,7 @@ function App() {
       if (ids.length === 0) throw new Error("No valid IDs provided");
 
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
-      const CHUNK_SIZE = 200;
+      const CHUNK_SIZE = 100;
       const totalBatches = Math.ceil(ids.length / CHUNK_SIZE);
 
       setBatchStatus({ current: 0, total: totalBatches, active: true });
