@@ -233,7 +233,7 @@ function App() {
       if (ids.length === 0) throw new Error("No valid IDs provided");
 
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
-      const CHUNK_SIZE = 500;
+      const CHUNK_SIZE = 50;
       const totalBatches = Math.ceil(ids.length / CHUNK_SIZE);
 
       setBatchStatus({ current: 0, total: totalBatches, active: true });
@@ -242,7 +242,7 @@ function App() {
         const chunk = ids.slice(i, i + CHUNK_SIZE);
         const batchNum = Math.floor(i / CHUNK_SIZE) + 1;
         setBatchStatus(prev => ({ ...prev, current: batchNum }));
-        
+
         const tx = await vault.batchUnstake(chunk);
         await tx.wait();
       }
@@ -268,7 +268,7 @@ function App() {
       if (ids.length === 0) throw new Error("No valid IDs provided");
 
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
-      const CHUNK_SIZE = 500;
+      const CHUNK_SIZE = 200;
       const totalBatches = Math.ceil(ids.length / CHUNK_SIZE);
 
       setBatchStatus({ current: 0, total: totalBatches, active: true });
@@ -461,8 +461,8 @@ function App() {
                 onClick={handleUnstake}
                 disabled={isUnstaking || !unstakeIds || !vaultAddress}
               >
-                {isUnstaking 
-                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...') 
+                {isUnstaking
+                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...')
                   : 'Unstake Tokens'}
               </button>
             </div>
@@ -491,8 +491,8 @@ function App() {
                 onClick={handleStake}
                 disabled={isStaking || !stakeIds || !vaultAddress}
               >
-                {isStaking 
-                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...') 
+                {isStaking
+                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...')
                   : 'Stake Tokens'}
               </button>
             </div>
