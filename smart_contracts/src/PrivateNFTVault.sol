@@ -97,6 +97,8 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Batches the unstaking of multiple NFTs.
+     *      Only counts and removes IDs that are actually staked, so partial
+     *      or duplicate lists never cause a math underflow revert.
      */
     function batchUnstake(
         uint256[] calldata tokenIds
@@ -105,17 +107,17 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
 
         _syncRewards();
 
-        require(totalStaked >= tokenIds.length, "Critical math error");
-        totalStaked -= tokenIds.length;
-
+        uint256 actuallyUnstaked = 0;
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
-
-            // Reset state
-            delete vaultedNFTs[tokenId];
-
-            // Transfer out removed for soft staking
+            if (vaultedNFTs[tokenId].timestamp != 0) {
+                delete vaultedNFTs[tokenId];
+                actuallyUnstaked++;
+            }
         }
+
+        require(totalStaked >= actuallyUnstaked, "Critical math error");
+        totalStaked -= actuallyUnstaked;
 
         emit Unstaked(tokenIds, block.timestamp);
     }
