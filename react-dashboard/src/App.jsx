@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import UnmintedScanner from './components/UnmintedScanner';
 import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2, RefreshCw } from 'lucide-react';
 import './index.css';
 
@@ -10,6 +11,7 @@ const VAULT_ABI = [
   "function lastClaimTimestamp() view returns (uint256)",
   "function claimRewards() external",
   "function batchStake(uint256[] calldata tokenIds) external",
+  "function batchStakeUnminted(uint256[] calldata tokenIds) external",
   "function batchUnstake(uint256[] calldata tokenIds) external",
   "function setRewardRate(uint256 newRate) external",
   "function pause() external",
@@ -165,8 +167,8 @@ function App() {
       }
 
       // Calculate the specific explicitly Staked IDs from Events
-      const stakedLogs = await vault.queryFilter(vault.filters.Staked());
-      const unstakedLogs = await vault.queryFilter(vault.filters.Unstaked());
+      const stakedLogs = await vault.queryFilter(vault.filters.Staked(), -10000);
+      const unstakedLogs = await vault.queryFilter(vault.filters.Unstaked(), -10000);
 
       const activeIds = new Set();
       stakedLogs.forEach(log => {
@@ -256,7 +258,8 @@ function App() {
       setStakeIds("");
       await fetchStats();
     } catch (err) {
-      setError("Stake failed. Verify you own these NFT IDs.");
+      console.error(err);
+      setError(`Stake failed: ${err.reason || err.shortMessage || err.message}`);
     }
     setIsStaking(false);
   };
@@ -418,12 +421,19 @@ function App() {
               />
               <button
                 className="btn btn-outline"
-                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
+                style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px', marginBottom: '1.5rem' }}
                 onClick={handleStake}
                 disabled={isStaking || !stakeIds || !vaultAddress}
               >
                 {isStaking ? 'Processing...' : 'Stake Tokens'}
               </button>
+            </div>
+
+            <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
+               <UnmintedScanner 
+                  vaultContract={signer ? new ethers.Contract(vaultAddress, VAULT_ABI, signer) : null} 
+                  onActionComplete={fetchStats}
+               />
             </div>
 
             <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

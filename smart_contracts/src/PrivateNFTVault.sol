@@ -65,29 +65,33 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
         _unpause();
     }
 
-    /**
-     * @dev Batches the deposit of multiple NFTs simultaneously into the vault.
-     */
     function batchStake(
         uint256[] calldata tokenIds
     ) external onlyOwner whenNotPaused nonReentrant {
+        _stake(tokenIds);
+    }
+
+    /**
+     * @dev Specifically tracks unminted IDs for yield calculation.
+     */
+    function batchStakeUnminted(
+        uint256[] calldata tokenIds
+    ) external onlyOwner whenNotPaused nonReentrant {
+        _stake(tokenIds);
+    }
+
+    function _stake(uint256[] calldata tokenIds) internal {
         require(tokenIds.length > 0, "No tokens provided");
-
-        // Sync rewards so previous time is locked in at previous stake weight
         _syncRewards();
-
         totalStaked += tokenIds.length;
-
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             require(vaultedNFTs[tokenId].timestamp == 0, "Already staked");
-
             vaultedNFTs[tokenId] = StakedNFT({
                 timestamp: block.timestamp,
                 owner: msg.sender
             });
         }
-
         emit Staked(tokenIds, block.timestamp);
     }
 
