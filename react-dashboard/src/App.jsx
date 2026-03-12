@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import UnmintedScanner from './components/UnmintedScanner';
-import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Wallet, Layers, TrendingUp, Coins, Activity, CheckCircle2, RefreshCw, Upload } from 'lucide-react';
 import './index.css';
 
 const VAULT_ABI = [
@@ -264,6 +264,27 @@ function App() {
     setIsStaking(false);
   };
 
+  const handleFileUpload = (e, target) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const ids = content.match(/\d+/g);
+      if (ids) {
+        if (target === 'stake') {
+          setStakeIds(ids.join(', '));
+        } else {
+          setUnstakeIds(ids.join(', '));
+        }
+      } else {
+        setError("Could not find any valid token IDs in the file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleSetRate = async () => {
     if (!signer || !vaultAddress || !newRate) return;
     setIsSettingRate(true);
@@ -391,13 +412,20 @@ function App() {
                 </div>
               )}
 
-              <input
-                type="text"
-                placeholder="Token IDs to unstake"
-                className="form-input"
-                value={unstakeIds}
-                onChange={(e) => setUnstakeIds(e.target.value)}
-              />
+              <div style={{ width: '100%', maxWidth: '300px', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Token IDs to unstake"
+                  className="form-input"
+                  style={{ marginBottom: 0, flex: 1 }}
+                  value={unstakeIds}
+                  onChange={(e) => setUnstakeIds(e.target.value)}
+                />
+                <label className="btn btn-outline" title="Upload IDs from file" style={{ padding: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Upload size={16} />
+                  <input type="file" accept=".txt" onChange={(e) => handleFileUpload(e, 'unstake')} style={{ display: 'none' }} />
+                </label>
+              </div>
               <button
                 className="btn btn-outline"
                 style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px' }}
@@ -412,13 +440,20 @@ function App() {
               <h3>Stake NFTs</h3>
               <p>Enter Token IDs you own to stake.</p>
 
-              <input
-                type="text"
-                placeholder="Token IDs to stake"
-                className="form-input"
-                value={stakeIds}
-                onChange={(e) => setStakeIds(e.target.value)}
-              />
+              <div style={{ width: '100%', maxWidth: '300px', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Token IDs to stake"
+                  className="form-input"
+                  style={{ marginBottom: 0, flex: 1 }}
+                  value={stakeIds}
+                  onChange={(e) => setStakeIds(e.target.value)}
+                />
+                <label className="btn btn-outline" title="Upload IDs from file" style={{ padding: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Upload size={16} />
+                  <input type="file" accept=".txt" onChange={(e) => handleFileUpload(e, 'stake')} style={{ display: 'none' }} />
+                </label>
+              </div>
               <button
                 className="btn btn-outline"
                 style={{ margin: '0 auto', padding: '1rem 3.5rem', fontSize: '1.1rem', borderRadius: '50px', marginBottom: '1.5rem' }}
@@ -430,10 +465,7 @@ function App() {
             </div>
 
             <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-               <UnmintedScanner 
-                  vaultContract={signer ? new ethers.Contract(vaultAddress, VAULT_ABI, signer) : null} 
-                  onActionComplete={fetchStats}
-               />
+              <UnmintedScanner />
             </div>
 
             <div className="claim-section" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
