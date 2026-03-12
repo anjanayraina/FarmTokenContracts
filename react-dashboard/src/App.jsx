@@ -56,6 +56,7 @@ function App() {
   const [vaultOwner, setVaultOwner] = useState("");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [batchStatus, setBatchStatus] = useState({ current: 0, total: 0, active: false });
 
   useEffect(() => {
     if (window.ethereum) {
@@ -226,42 +227,70 @@ function App() {
     if (!signer || !vaultAddress || !unstakeIds) return;
     setIsUnstaking(true);
     setError("");
+    setBatchStatus({ current: 0, total: 0, active: true });
     try {
-      // Split by comma, remove whitespace, convert to BigInt
       const ids = unstakeIds.split(',').filter(id => id.trim() !== '').map(id => BigInt(id.trim()));
       if (ids.length === 0) throw new Error("No valid IDs provided");
 
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
-      const tx = await vault.batchUnstake(ids);
-      await tx.wait();
+      const CHUNK_SIZE = 500;
+      const totalBatches = Math.ceil(ids.length / CHUNK_SIZE);
+
+      setBatchStatus({ current: 0, total: totalBatches, active: true });
+
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batchNum = Math.floor(i / CHUNK_SIZE) + 1;
+        setBatchStatus(prev => ({ ...prev, current: batchNum }));
+        
+        const tx = await vault.batchUnstake(chunk);
+        await tx.wait();
+      }
 
       setUnstakeIds("");
       await fetchStats();
+      alert(`Success! Successfully unstaked ${ids.length} tokens in ${totalBatches} batches.`);
     } catch (err) {
-      setError("Unstake failed. Verify token IDs are comma-separated and currently staked by you.");
+      console.error(err);
+      setError(`Unstake failed: ${err.reason || err.shortMessage || err.message}`);
     }
     setIsUnstaking(false);
+    setBatchStatus({ current: 0, total: 0, active: false });
   };
 
   const handleStake = async () => {
     if (!signer || !vaultAddress || !stakeIds) return;
     setIsStaking(true);
     setError("");
+    setBatchStatus({ current: 0, total: 0, active: true });
     try {
       const ids = stakeIds.split(',').filter(id => id.trim() !== '').map(id => BigInt(id.trim()));
       if (ids.length === 0) throw new Error("No valid IDs provided");
 
       const vault = new ethers.Contract(vaultAddress, VAULT_ABI, signer);
-      const tx = await vault.batchStake(ids);
-      await tx.wait();
+      const CHUNK_SIZE = 500;
+      const totalBatches = Math.ceil(ids.length / CHUNK_SIZE);
+
+      setBatchStatus({ current: 0, total: totalBatches, active: true });
+
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batchNum = Math.floor(i / CHUNK_SIZE) + 1;
+        setBatchStatus(prev => ({ ...prev, current: batchNum }));
+
+        const tx = await vault.batchStake(chunk);
+        await tx.wait();
+      }
 
       setStakeIds("");
       await fetchStats();
+      alert(`Success! Successfully staked ${ids.length} tokens in ${totalBatches} batches.`);
     } catch (err) {
       console.error(err);
       setError(`Stake failed: ${err.reason || err.shortMessage || err.message}`);
     }
     setIsStaking(false);
+    setBatchStatus({ current: 0, total: 0, active: false });
   };
 
   const handleFileUpload = (e, target) => {
@@ -432,7 +461,9 @@ function App() {
                 onClick={handleUnstake}
                 disabled={isUnstaking || !unstakeIds || !vaultAddress}
               >
-                {isUnstaking ? 'Processing...' : 'Unstake Tokens'}
+                {isUnstaking 
+                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...') 
+                  : 'Unstake Tokens'}
               </button>
             </div>
 
@@ -460,7 +491,9 @@ function App() {
                 onClick={handleStake}
                 disabled={isStaking || !stakeIds || !vaultAddress}
               >
-                {isStaking ? 'Processing...' : 'Stake Tokens'}
+                {isStaking 
+                  ? (batchStatus.active ? `Batch ${batchStatus.current}/${batchStatus.total}` : 'Processing...') 
+                  : 'Stake Tokens'}
               </button>
             </div>
 
