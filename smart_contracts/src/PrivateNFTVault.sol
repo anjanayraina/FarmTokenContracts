@@ -39,8 +39,9 @@ contract PrivateNFTVault is Ownable, ReentrancyGuard, Pausable {
 
     constructor(
         address _nftAddress,
-        address _rewardTokenAddress
-    ) Ownable(msg.sender) {
+        address _rewardTokenAddress,
+        address _initialOwner
+    ) Ownable(_initialOwner) {
         require(_nftAddress != address(0), "Invalid NFT");
         require(_rewardTokenAddress != address(0), "Invalid Yield Token");
         nftCollection = IERC721(_nftAddress);

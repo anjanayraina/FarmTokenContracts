@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
-import { Search, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react';
+import { Search, Loader2, CheckCircle2, AlertCircle, Download, Database, FileSearch, RefreshCw } from 'lucide-react';
 
-const NFT_ADDRESS = "0x0c06d6a17eb208a9bc7bd698eb6f22379209e3a4";
+const NFT_ADDRESS = "0x0c06d6A17eb208A9BC7Bd698Eb6f22379209e3A4";
 const MAINNET_RPC = "https://mainnet.infura.io/v3/2aa96ca084c245dab3db38256f7e9c27";
 
 const NFT_ABI = [
@@ -10,7 +10,7 @@ const NFT_ABI = [
   "function MAX_SUPPLY() view returns (uint256)"
 ];
 
-const UnmintedScanner = ({ onActionComplete }) => {
+const UnmintedScanner = () => {
   const [unmintedIds, setUnmintedIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +46,9 @@ const UnmintedScanner = ({ onActionComplete }) => {
 
       const mintedSet = new Set();
       logs.forEach(log => {
-        mintedSet.add(log.args.tokenId.toString());
+        if (log.args && log.args.tokenId) {
+          mintedSet.add(log.args.tokenId.toString());
+        }
       });
 
       const available = [];
@@ -58,8 +60,6 @@ const UnmintedScanner = ({ onActionComplete }) => {
 
       setUnmintedIds(available);
       setProgress(`Found ${available.length} unminted IDs.`);
-      
-      // Automatically trigger download
       downloadIds(available);
       
     } catch (err) {
@@ -71,67 +71,120 @@ const UnmintedScanner = ({ onActionComplete }) => {
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-6 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Search className="w-5 h-5 text-blue-400" />
-            Unminted NFT Scanner
-          </h2>
-          <p className="text-slate-400 text-sm mt-1">Generate a registry file of EWB IDs not yet minted.</p>
+    <div className="glass-heavy" style={{ padding: '2.5rem', marginTop: '2.5rem', border: '1px solid var(--border-accent)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2.5rem', gap: '2rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div style={{ 
+            width: '56px', height: '56px', borderRadius: '16px',
+            background: 'linear-gradient(135deg, rgba(0,242,255,0.1), rgba(112,0,255,0.1))', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-accent)',
+            boxShadow: 'inset 0 0 15px rgba(0,242,255,0.1)'
+          }}>
+            <Database size={28} color="var(--accent-primary)" />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#fff' }}>Stock Inventory Oracle</h3>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Identifying unminted cryptographic assets on Ethereum L1</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div style={{ display: 'flex', gap: '1rem' }}>
           {unmintedIds.length > 0 && !loading && (
             <button
-              onClick={() => downloadIds()}
-              className="p-2 text-blue-400 hover:text-white transition-colors bg-blue-400/10 rounded-lg border border-blue-400/20"
-              title="Re-download Registry"
+               className="btn btn-outline"
+               onClick={() => downloadIds()}
+               style={{ width: '48px', height: '48px', padding: 0, justifyContent: 'center', borderRadius: '12px' }}
+               title="Re-download Data"
             >
-              <Download className="w-5 h-5" />
+              <Download size={20} />
             </button>
           )}
           <button
+            className="btn"
             onClick={scanForUnminted}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white rounded-lg font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
+            style={{ minWidth: '200px', height: '48px', justifyContent: 'center', borderRadius: '12px', fontSize: '1rem' }}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? 'Scanning...' : unmintedIds.length > 0 ? "Rescan" : "Start Scan"}
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <FileSearch size={20} />}
+            {loading ? 'Scanning L1...' : 'Initialize Global Scan'}
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 mt-0.5" />
+        <div className="error-box" style={{ margin: '0 0 2rem' }}>
+          <AlertCircle size={20} />
           <span>{error}</span>
         </div>
       )}
 
-      {loading && (
-        <div className="mt-6 py-6 border-t border-slate-800 flex flex-col items-center justify-center text-slate-400">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
-          <p className="text-sm font-medium">{progress}</p>
-        </div>
-      )}
+      <div className="glass" style={{ 
+        padding: '4rem 2rem', textAlign: 'center', 
+        background: 'rgba(0,0,0,0.3)', 
+        border: '1px dashed rgba(255,255,255,0.05)',
+        borderRadius: '24px',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', position: 'relative', zIndex: 2 }}>
+            <div style={{ position: 'relative' }}>
+               <RefreshCw size={64} className="animate-spin" color="var(--accent-primary)" style={{ filter: 'drop-shadow(0 0 10px var(--accent-primary-glow))' }} />
+               <div style={{ 
+                 position: 'absolute', inset: -15, borderRadius: '50%', 
+                 border: '2px solid var(--accent-primary)', opacity: 0.15,
+                 animation: 'pulse 2s infinite'
+               }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontWeight: 700, color: 'var(--accent-primary)', fontSize: '1.1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Protocol Active</p>
+              <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{progress}</p>
+            </div>
+          </div>
+        ) : unmintedIds.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', position: 'relative', zIndex: 2 }}>
+             <div style={{ 
+               width: '80px', height: '80px', borderRadius: '50%', 
+               background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+               display: 'flex', alignItems: 'center', justifyContent: 'center'
+             }}>
+               <CheckCircle2 size={40} color="var(--accent-success)" />
+             </div>
+             <div>
+                <h4 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>Sync Completed</h4>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Identified <strong>{unmintedIds.length}</strong> available assets for downstream processing.</p>
+             </div>
+             <button className="btn btn-ghost" style={{ fontSize: '0.9rem', color: 'var(--accent-primary)' }} onClick={() => downloadIds()}>
+                <Download size={16} /> Re-generate local manifest
+             </button>
+          </div>
+        ) : (
+          <div style={{ opacity: 0.4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+              <FileSearch size={80} style={{ color: 'var(--text-dim)' }} />
+              <Search size={24} style={{ position: 'absolute', bottom: 5, right: 5, color: 'var(--accent-primary)' }} />
+            </div>
+            <p style={{ fontSize: '1.1rem', fontWeight: 500 }}>Global Index Offline</p>
+            <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Initialize scan to map available EWB registry IDs</p>
+          </div>
+        )}
+        
+        {/* Background Decorative Element */}
+        <div style={{ 
+          position: 'absolute', top: '50%', left: '50%', 
+          width: '100%', height: '100%', 
+          background: 'radial-gradient(circle at center, rgba(0,242,255,0.03) 0%, transparent 70%)',
+          transform: 'translate(-50%, -50%)', pointerEvents: 'none'
+        }} />
+      </div>
 
-      {!loading && unmintedIds.length > 0 && (
-        <div className="mt-6 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-lg flex items-center justify-between">
-          <p className="text-emerald-400 text-sm font-medium">
-            Scan Complete: Found <strong>{unmintedIds.length}</strong> available IDs. 
-            <span className="block text-slate-500 text-xs mt-0.5">Registry file has been generated and downloaded.</span>
-          </p>
-          <CheckCircle2 className="text-emerald-500 w-5 h-5" />
-        </div>
-      )}
-
-      {/* Initial standby state */}
-      {!loading && unmintedIds.length === 0 && !error && (
-        <div className="mt-6 py-12 border-2 border-dashed border-slate-800 rounded-xl flex flex-col items-center justify-center text-slate-500">
-          <Search className="w-12 h-12 mb-4 opacity-20" />
-          <p className="text-sm">Click "Start Scan" to identify unminted assets</p>
-        </div>
-      )}
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 0.1; }
+          50% { transform: scale(1.3); opacity: 0.3; }
+          100% { transform: scale(1); opacity: 0.1; }
+        }
+      `}</style>
     </div>
   );
 };

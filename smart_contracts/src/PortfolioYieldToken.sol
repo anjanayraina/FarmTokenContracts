@@ -9,8 +9,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Standard ERC-20 token representing yield within the private vault.
  */
 contract PortfolioYieldToken is ERC20, Ownable {
-    constructor() ERC20("Portfolio Yield Token", "PYT") Ownable(msg.sender) {
-        // Mint exactly 50,000,000 tokens to the msg.sender (the Owner/Multisig) upon deployment.
-        _mint(msg.sender, 50_000_000 * 10 ** decimals());
+    constructor(address initialOwner) ERC20("Portfolio Yield Token", "PYT") Ownable(initialOwner) {
+        // Mint exactly 50,000,000 tokens to the specified Owner/Multisig upon deployment.
+        _mint(initialOwner, 50_000_000 * 10 ** decimals());
     }
 }
