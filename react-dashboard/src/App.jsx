@@ -320,7 +320,7 @@ function App() {
       <header className="header glass">
         <div className="logo">
           <Activity size={32} />
-          <span>Antigravity <i style={{ fontWeight: 300, fontSize: '0.8em', opacity: 0.7 }}>Yield</i></span>
+          <span>GPM <i style={{ fontWeight: 300, fontSize: '0.8em', opacity: 0.7 }}>Protocol</i></span>
         </div>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -362,7 +362,7 @@ function App() {
 
           <div className="section-header">
             <div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700 }}>Portfolio Overview</h2>
+              <h2 style={{ fontSize: '2rem', fontWeight: 700 }}>Gorilla In Pink Mask</h2>
               <p style={{ color: 'var(--text-secondary)' }}>Real-time treasury distribution and yield projections.</p>
             </div>
             <button
@@ -383,15 +383,15 @@ function App() {
             </div>
             <div className="card glass">
               <div className="card-title"><TrendingUp size={18} color="#10b981" /> Accrued Yield</div>
-              <div className="card-value">{parseFloat(stats.pending).toFixed(4)} <span>PYT</span></div>
+              <div className="card-value">{parseFloat(stats.pending).toFixed(4)} <span>GPM</span></div>
             </div>
             <div className="card glass">
               <div className="card-title"><Shield size={18} color="var(--accent-secondary)" /> Vault Reserve</div>
-              <div className="card-value">{parseFloat(stats.vaultReserve).toLocaleString(undefined, { maximumFractionDigits: 0 })} <span>PYT</span></div>
+              <div className="card-value">{parseFloat(stats.vaultReserve).toLocaleString(undefined, { maximumFractionDigits: 0 })} <span>GPM</span></div>
             </div>
             <div className="card glass">
               <div className="card-title"><Coins size={18} color="#f59e0b" /> Wallet Balance</div>
-              <div className="card-value">{parseFloat(stats.userBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} <span>PYT</span></div>
+              <div className="card-value">{parseFloat(stats.userBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} <span>GPM</span></div>
             </div>
           </div>
 
@@ -409,7 +409,7 @@ function App() {
               <div className="glass" style={{ padding: '2rem', textAlign: 'center', background: 'rgba(0,0,0,0.2)', marginBottom: '1.5rem' }}>
                 <span style={{ fontSize: '1rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Available for extraction</span>
                 <div style={{ fontSize: '3rem', fontWeight: 800, margin: '0.5rem 0' }}>{parseFloat(stats.pending).toFixed(6)}</div>
-                <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>PYT TOKENS</span>
+                <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>GPM TOKENS</span>
               </div>
 
               <button
@@ -522,7 +522,7 @@ function App() {
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <input
                         type="text"
-                        placeholder="New rate (PYT/hr)"
+                        placeholder="New rate (GPM/hr)"
                         className="form-input"
                         style={{ flex: 1 }}
                         value={newRate}
@@ -533,7 +533,7 @@ function App() {
                          {isSettingRate ? <RefreshCw className="animate-spin" size={18} /> : 'Update Rate'}
                       </button>
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>Current Global Rate: {stats.rewardRate} PYT/hr per staked NFT</p>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginTop: '0.5rem' }}>Current Global Rate: {stats.rewardRate} GPM/hr per staked NFT</p>
                  </div>
 
                  <div>
