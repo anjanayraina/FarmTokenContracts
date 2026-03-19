@@ -6,6 +6,7 @@ import {
   CheckCircle2, RefreshCw, Upload, Shield, 
   Lock, Unlock, Zap, Download, AlertCircle, Info
 } from 'lucide-react';
+import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import './index.css';
 
 const VAULT_ABI = [
@@ -61,6 +62,7 @@ function App() {
   const [vaultOwner, setVaultOwner] = useState("");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [batchStatus, setBatchStatus] = useState({ current: 0, total: 0, active: false });
 
   const handleAccountsChanged = useCallback(async (accounts) => {
@@ -134,6 +136,40 @@ function App() {
       setError("");
     } catch (err) {
       setError("Failed to connect wallet. Please try again.");
+    }
+  };
+
+  const connectWalletConnect = async () => {
+    try {
+      setIsConnecting(true);
+      setError("");
+      
+      // Initialize the WalletConnect Provider using an open public project ID config
+      const wcProvider = await EthereumProvider.init({
+        projectId: "8470a6c6e114faeb250269f8ad32b6ad", // Required for WC v2
+        showQrModal: true, // Pops open the standard QR Modal for Ballet / Trust Wallet
+        chains: [parseInt(chainIdInt)],
+        methods: ["eth_sendTransaction", "personal_sign"],
+        events: ["chainChanged", "accountsChanged"],
+      });
+
+      // Attempt to establish a session, pushing the QR code to screen natively
+      await wcProvider.connect();
+      
+      const browserProvider = new ethers.BrowserProvider(wcProvider);
+      setProvider(browserProvider);
+      
+      const accounts = await browserProvider.send("eth_requestAccounts", []);
+      setAccount(accounts[0]);
+      
+      const activeSigner = await browserProvider.getSigner();
+      setSigner(activeSigner);
+      setError("");
+    } catch (err) {
+      console.error(err);
+      setError("WalletConnect Failed or Cancelled");
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -337,9 +373,19 @@ function App() {
               {account.slice(0, 6)}...{account.slice(-4)}
             </div>
           ) : (
-            <button className="btn" onClick={connectWallet}>
-              <Wallet size={18} /> Connect Explorer
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-outline" onClick={connectWallet}>
+                <Wallet size={18} /> Browser
+              </button>
+              <button 
+                className="btn" 
+                style={{ backgroundColor: '#3b82f6', color: '#fff', border: 'none' }} 
+                onClick={connectWalletConnect} 
+                disabled={isConnecting}
+              >
+                <Wallet size={18} color="#fff" /> {isConnecting ? 'Waiting...' : 'WalletConnect'}
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -583,9 +629,14 @@ function App() {
           <p style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', maxWidth: 600, margin: '0 auto 3rem' }}>
             Initialize your terminal to monitor cryptographic vault distributions and manage high-frequency yield protocols.
           </p>
-          <button className="btn" style={{ padding: '1.25rem 4rem', borderRadius: '100px', fontSize: '1.1rem' }} onClick={connectWallet}>
-            Initialize Secure Link
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <button className="btn btn-outline" style={{ padding: '1.25rem 3rem', borderRadius: '100px', fontSize: '1.1rem' }} onClick={connectWallet}>
+              Browser Wallet
+            </button>
+            <button className="btn" style={{ padding: '1.25rem 3rem', borderRadius: '100px', fontSize: '1.1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none' }} onClick={connectWalletConnect} disabled={isConnecting}>
+               {isConnecting ? 'Opening Portal...' : 'WalletConnect / Ballet App'}
+            </button>
+          </div>
         </div>
       )}
     </div>
